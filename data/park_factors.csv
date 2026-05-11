@@ -1,0 +1,31 @@
+team,team_code,venue,venue_id
+Athletics,ATH,Sutter Health Park,2529
+Pittsburgh Pirates,PIT,PNC Park,31
+San Diego Padres,SD,Petco Park,2680
+Seattle Mariners,SEA,T-Mobile Park,680
+San Francisco Giants,SF,Oracle Park,2395
+St. Louis Cardinals,STL,Busch Stadium,2889
+Tampa Bay Rays,TB,Tropicana Field,12
+Texas Rangers,TEX,Globe Life Field,5325
+Toronto Blue Jays,TOR,Rogers Centre,14
+Minnesota Twins,MIN,Target Field,3312
+Philadelphia Phillies,PHI,Citizens Bank Park,2681
+Atlanta Braves,ATL,Truist Park,4705
+Chicago White Sox,CWS,Rate Field,4
+Miami Marlins,MIA,loanDepot park,4169
+New York Yankees,NYY,Yankee Stadium,3313
+Milwaukee Brewers,MIL,American Family Field,32
+Los Angeles Angels,LAA,Angel Stadium,1
+Arizona Diamondbacks,AZ,Chase Field,15
+Baltimore Orioles,BAL,Oriole Park at Camden Yards,2
+Boston Red Sox,BOS,Fenway Park,3
+Chicago Cubs,CHC,Wrigley Field,17
+Cincinnati Reds,CIN,Great American Ball Park,2602
+Cleveland Guardians,CLE,Progressive Field,5
+Colorado Rockies,COL,Coors Field,19
+Detroit Tigers,DET,Comerica Park,2394
+Houston Astros,HOU,Daikin Park,2392
+Kansas City Royals,KC,Kauffman Stadium,7
+Los Angeles Dodgers,LAD,UNIQLO Field at Dodger Stadium,22
+Washington Nationals,WSH,Nationals Park,3309
+New York Mets,NYM,Citi Field,3289
