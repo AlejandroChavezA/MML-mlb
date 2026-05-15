@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
+from src_v2.tracking import save_prediction
 
 load_dotenv(Path(__file__).parent.parent / ".env.local")
 
@@ -204,6 +205,29 @@ def export_todays_games(feature_engineer, winner, runs,
         if "error" in wpred:
             print(f"  Error prediciendo {home} vs {away}: {wpred['error']}")
             continue
+
+        game_pk = game.get("game_pk")
+        if game_pk:
+            home_code = home_info.get("code", "")
+            away_code = away_info.get("code", "")
+            ou = rpred.get("markets", {}).get("over_8.5", {})
+            save_prediction(int(game_pk), {
+                "game_pk": int(game_pk),
+                "date": str(date_val.date()),
+                "home_team": home_code,
+                "away_team": away_code,
+                "home_full": home,
+                "away_full": away,
+                "predicted_winner": home_code if wpred.get("code") == 1 else away_code,
+                "predicted_winner_code": wpred.get("code"),
+                "confidence": wpred.get("confidence", 0),
+                "winner_model": wpred.get("model", ""),
+                "over_under": "OVER" if ou.get("code") == 1 else "UNDER",
+                "over_prob": ou.get("over_prob", 0),
+                "runs_model": rpred.get("model", ""),
+                "exported": True,
+                "timestamp": datetime.now().isoformat(),
+            })
 
         pred = transform_to_panel_format(
             home, away,

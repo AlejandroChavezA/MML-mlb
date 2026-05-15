@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src_v2.features.mlb_feature_engineer import get_mlb_feature_engineer
 from src_v2.features.competitiveness import get_competitiveness
+from src_v2.tracking import save_prediction
 from src_v2.models.winner_predictor import get_winner_predictor
 from src_v2.models.runs_predictor import get_runs_predictor
 
@@ -303,6 +304,25 @@ def predict_date_games(date_str=None):
 
         print(f"  {home[:22]:22} {away[:22]:22}  {winner_short:6} {confidence:.0%}  {ou_pred} ({ou_pct:.0%})")
 
+        game_pk = game.get("game_pk")
+        if game_pk:
+            save_prediction(int(game_pk), {
+                "game_pk": int(game_pk),
+                "date": str(date_val.date()),
+                "home_team": home_info.get("code", ""),
+                "away_team": away_info.get("code", ""),
+                "home_full": home,
+                "away_full": away,
+                "predicted_winner": winner_short,
+                "predicted_winner_code": wpred.get("code"),
+                "confidence": confidence,
+                "winner_model": wpred.get("model", ""),
+                "over_under": ou_pred,
+                "over_prob": ou_pct,
+                "runs_model": rpred.get("model", ""),
+                "timestamp": target_date.isoformat(),
+            })
+
         from src_v2.export_to_panel import transform_to_panel_format
         panel_pred = transform_to_panel_format(
             home, away,
@@ -389,6 +409,7 @@ def main():
         ("Entrenar modelos", train_models),
         ("Actualizar datos", update_data),
         ("Exportar predicciones al panel", export_to_panel),
+        ("Ver rendimiento de predicciones", view_performance),
         ("Salir", None),
     ]
 
@@ -423,6 +444,32 @@ def main():
             input("Opción inválida. Presiona Enter...")
 
     print("\n MLB Predictor finalizado.")
+
+
+def view_performance():
+    """Ver rendimiento de predicciones vs resultados reales"""
+    print("\n RENDIMIENTO DE PREDICCIONES")
+    print("=" * 40)
+
+    from src_v2.tracking import print_report, get_summary
+
+    summary = get_summary()
+    if "error" in summary:
+        print(f"  {summary['error']}")
+        return
+
+    print(f"  Total predicciones guardadas: {summary['total_predicciones']}")
+    print(f"  Temporadas: {', '.join(summary['temporadas'])}")
+    print()
+
+    year = input("  Año a evaluar (Enter = año más reciente): ").strip()
+    if not year and summary["temporadas"]:
+        year = summary["temporadas"][-1]
+    if not year or not year.isdigit():
+        print("  Año inválido")
+        return
+
+    print_report(int(year))
 
 
 def export_to_panel():
