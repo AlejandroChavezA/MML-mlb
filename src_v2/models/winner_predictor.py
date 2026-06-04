@@ -23,18 +23,22 @@ class WinnerPredictor:
         self.performance: Dict[str, Dict] = {}
         self.best_model: str = "gradient_boosting"
 
-    def train(self, features_df: pd.DataFrame, targets: pd.Series) -> bool:
+    def train(self, features_df: pd.DataFrame, targets: pd.Series,
+               X_test: pd.DataFrame = None, y_test: pd.Series = None) -> bool:
         print("\n" + "=" * 50)
         print("  ENTRENANDO WINNER PREDICTOR (3 MODELOS CALIBRADOS)")
         print("=" * 50)
 
         self.feature_cols = features_df.columns.tolist()
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            features_df, targets, test_size=0.2, random_state=42
-        )
-
-        print(f"  Train: {len(X_train)}, Test: {len(X_test)}")
+        if X_test is not None and y_test is not None:
+            X_train, y_train = features_df, targets
+            print(f"  Train: {len(X_train)}, Test externo: {len(X_test)}")
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                features_df, targets, test_size=0.2, random_state=42
+            )
+            print(f"  Train: {len(X_train)}, Test: {len(X_test)}")
 
         cal_configs = {
             "random_forest": CalibratedClassifierCV(
@@ -105,6 +109,56 @@ class WinnerPredictor:
         )
         print(f"\n  Mejor modelo: {self.best_model} ({self.performance[self.best_model]['test_acc']:.3f})")
         self._save()
+        return True
+
+    def train_final(self, features_df: pd.DataFrame, targets: pd.Series) -> bool:
+        """Entrenar todos los modelos con el 100% de los datos y guardar."""
+        print("\n" + "=" * 50)
+        print("  ENTRENANDO MODELO FINAL (100% DE DATOS)")
+        print("=" * 50)
+
+        self.feature_cols = features_df.columns.tolist()
+
+        cal_configs = {
+            "random_forest": CalibratedClassifierCV(
+                estimator=RandomForestClassifier(
+                    n_estimators=200, max_depth=10, min_samples_split=20,
+                    min_samples_leaf=10, random_state=42, class_weight="balanced", n_jobs=-1,
+                ),
+                method="sigmoid", cv=5,
+            ),
+            "gradient_boosting": CalibratedClassifierCV(
+                estimator=GradientBoostingClassifier(
+                    n_estimators=80, max_depth=4, learning_rate=0.05,
+                    min_samples_split=20, min_samples_leaf=10,
+                    random_state=42, subsample=0.7, max_features="sqrt",
+                ),
+                method="sigmoid", cv=5,
+            ),
+            "logistic_regression": CalibratedClassifierCV(
+                estimator=Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("lr", LogisticRegression(
+                        random_state=42, class_weight="balanced",
+                        max_iter=2000, solver="lbfgs",
+                    )),
+                ]),
+                method="sigmoid", cv=5,
+            ),
+        }
+
+        for name in self.MODEL_NAMES:
+            model = cal_configs[name]
+            print(f"  >> {name}")
+            model.fit(features_df, targets)
+            self.models[name] = model
+
+        self.best_model = max(
+            self.MODEL_NAMES,
+            key=lambda n: self.performance.get(n, {}).get("test_acc", 0)
+        )
+        self._save()
+        print(f"  Modelo final guardado ({len(features_df)} muestras, 100%)")
         return True
 
     def _save(self):

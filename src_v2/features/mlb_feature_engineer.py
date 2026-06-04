@@ -79,19 +79,19 @@ class MLBFeatureEngineer:
                 self.standings[year] = self._load_csv(
                     f"standings_{year}_cleaned.csv", self.cleaned_dir
                 )
-                self.team_batting[year] = self._load_csv(
+                self.team_batting[year] = self._load_csv_optional(
                     f"team_batting_{year}.csv", self.data_dir
                 )
-                self.team_pitching[year] = self._load_csv(
+                self.team_pitching[year] = self._load_csv_optional(
                     f"team_pitching_{year}.csv", self.data_dir
                 )
-                self.pitcher_stats[year] = self._load_csv(
+                self.pitcher_stats[year] = self._load_csv_optional(
                     f"pitcher_stats_{year}.csv", self.data_dir
                 )
                 self.games[year]["date"] = pd.to_datetime(self.games[year]["date"])
 
             self.teams = self._load_csv("teams_cleaned.csv", self.cleaned_dir)
-            self.park_factors = self._load_csv("park_factors.csv", self.data_dir)
+            self.park_factors = self._load_csv_optional("park_factors.csv", self.data_dir)
 
             total = sum(len(g) for g in self.games.values())
             print(f"✅ Datos MLB cargados: {total} juegos ({len(years)} temporadas)")
@@ -104,6 +104,12 @@ class MLBFeatureEngineer:
         path = directory / filename
         if not path.exists():
             raise FileNotFoundError(f"No se encontró: {path}")
+        return pd.read_csv(path)
+
+    def _load_csv_optional(self, filename: str, directory: Path) -> pd.DataFrame:
+        path = directory / filename
+        if not path.exists():
+            return pd.DataFrame()
         return pd.read_csv(path)
 
     def _get_team_code(self, team_name: str) -> str:
@@ -577,10 +583,11 @@ class MLBFeatureEngineer:
         }
 
     def create_training_dataset(self, years: List[int] = None
-                                 ) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
+                                  ) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
         """Crear dataset para entrenamiento desde juegos FINISHED.
         
         Returns: (features_df, winner_targets, runs_targets)
+        Los datos se ordenan por fecha para permitir split cronológico.
         """
         if years is None:
             years = [2021, 2022, 2023, 2024]
@@ -589,6 +596,7 @@ class MLBFeatureEngineer:
             [self.games[y][self.games[y]["status"] == "FINISHED"] for y in years],
             ignore_index=True,
         )
+        all_matches = all_matches.sort_values("date").reset_index(drop=True)
 
         features_list = []
         targets_winner = []

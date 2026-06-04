@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+mlb-env/
+
+# Environment variables (contains secrets)
+.env.local
+
+# OS files
+.DS_Store
+
+# Data files (regeneratable with download/update scripts)
+data/*.csv
+data/predictions.json
+data/cleaned/
+
+# Trained models (regeneratable with --train)
+models_mlb/*.pkl

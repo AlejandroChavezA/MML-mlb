@@ -54,8 +54,15 @@ def predict_game(home_code: str, away_code: str, date=None,
     print(f"\n {home} vs {away}")
     print("-" * 50)
 
+    from pathlib import Path
+    cleaned_dir = Path("data") / "cleaned"
+    all_years = sorted(set(
+        int(f.stem.split("_")[1])
+        for f in cleaned_dir.glob("games_*_cleaned.csv")
+    )) or [2024, 2025]
+
     fe = get_mlb_feature_engineer("data")
-    fe.load_data(years=[2024, 2025])
+    fe.load_data(years=all_years)
 
     winner = get_winner_predictor("models_mlb")
     if not winner.load():
@@ -102,8 +109,15 @@ def test_with_known_results():
     print("\n  TEST CON RESULTADOS CONOCIDOS")
     print("=" * 50)
 
+    from pathlib import Path
+    cleaned_dir = Path("data") / "cleaned"
+    all_years = sorted(set(
+        int(f.stem.split("_")[1])
+        for f in cleaned_dir.glob("games_*_cleaned.csv")
+    )) or [2024]
+
     fe = get_mlb_feature_engineer("data")
-    fe.load_data(years=[2024])
+    fe.load_data(years=all_years)
 
     winner = get_winner_predictor("models_mlb")
     if not winner.load():
@@ -112,7 +126,8 @@ def test_with_known_results():
     runs = get_runs_predictor("models_mlb")
     runs.load()
 
-    games = fe.games[2024]
+    year = all_years[-1]
+    games = fe.games[year]
     finished = games[games["status"] == "FINISHED"].tail(20).copy()
 
     correct = 0

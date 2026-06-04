@@ -24,18 +24,23 @@ class RunsPredictor:
         self.performance: Dict[str, Dict] = {}
         self.best_model: str = "random_forest"
 
-    def train(self, features_df: pd.DataFrame, targets: pd.Series) -> bool:
+    def train(self, features_df: pd.DataFrame, targets: pd.Series,
+               X_test: pd.DataFrame = None, y_test: pd.Series = None) -> bool:
         print("\n" + "=" * 50)
         print("  ENTRENANDO RUNS PREDICTOR (3 MODELOS)")
         print("=" * 50)
 
         self.feature_cols = features_df.columns.tolist()
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            features_df, targets, test_size=0.2, random_state=42
-        )
+        if X_test is not None and y_test is not None:
+            X_train, y_train = features_df, targets
+            print(f"  Train: {len(X_train)}, Test externo: {len(X_test)}")
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                features_df, targets, test_size=0.2, random_state=42
+            )
+            print(f"  Train: {len(X_train)}, Test: {len(X_test)}")
 
-        print(f"  Train: {len(X_train)}, Test: {len(X_test)}")
         print(f"  Avg runs: {y_train.mean():.2f}")
 
         # binary O/U target for LR classifier
@@ -116,6 +121,55 @@ class RunsPredictor:
         )
         print(f"\n  Mejor modelo: {self.best_model} ({self.performance[self.best_model]['test_ou_acc']:.3f})")
         self._save()
+        return True
+
+    def train_final(self, features_df: pd.DataFrame, targets: pd.Series) -> bool:
+        """Entrenar todos los modelos con el 100% de los datos y guardar."""
+        print("\n" + "=" * 50)
+        print("  ENTRENANDO MODELO FINAL RUNS (100% DE DATOS)")
+        print("=" * 50)
+
+        self.feature_cols = features_df.columns.tolist()
+
+        configs = {
+            "random_forest": RandomForestRegressor(
+                n_estimators=100, max_depth=10, min_samples_split=10,
+                min_samples_leaf=5, random_state=42, n_jobs=-1,
+            ),
+            "gradient_boosting": GradientBoostingRegressor(
+                n_estimators=100, max_depth=5, learning_rate=0.05,
+                min_samples_split=10, min_samples_leaf=5,
+                random_state=42, subsample=0.8,
+            ),
+            "logistic_regression": CalibratedClassifierCV(
+                estimator=Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("lr", LogisticRegression(
+                        random_state=42, class_weight="balanced",
+                        max_iter=2000, solver="lbfgs",
+                    )),
+                ]),
+                method="sigmoid", cv=5,
+            ),
+        }
+
+        y_ou = (targets > 8.5).astype(int)
+
+        for name in self.MODEL_NAMES:
+            model = configs[name]
+            print(f"  >> {name}")
+            if name == "logistic_regression":
+                model.fit(features_df, y_ou)
+            else:
+                model.fit(features_df, targets)
+            self.models[name] = model
+
+        self.best_model = max(
+            self.MODEL_NAMES,
+            key=lambda n: self.performance.get(n, {}).get("test_ou_acc", 0)
+        )
+        self._save()
+        print(f"  Modelo final runs guardado ({len(features_df)} muestras, 100%)")
         return True
 
     def _save(self):
