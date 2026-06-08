@@ -7,6 +7,10 @@ __pycache__/
 # Virtual environment
 mlb-env/
 
+# CLAUDE
+/claude 
+.CLAUDE.md
+
 # Environment variables (contains secrets)
 .env.local
 

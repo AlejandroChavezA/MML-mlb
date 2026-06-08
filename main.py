@@ -64,9 +64,8 @@ def update_data():
         schedule = collector.get_schedule(current)
         schedule.to_csv(f"data/games_{current}.csv", index=False)
         print(f"  Games {current}: {len(schedule)} guardados")
-        standings = collector.get_standings(current)
-        standings.to_csv(f"data/standings_{current}.csv", index=False)
-        print(f"  Standings {current}: {len(standings)} equipos")
+        collector.get_standings(current)  # guarda y reporta standings_{year}.csv
+        collector.get_teams()
     except Exception as e:
         print(f"  ⚠️ No se pudo recolectar {current}: {e}")
 
@@ -79,8 +78,21 @@ def update_data():
     print("\n Limpiando datos...")
     from src_v2.data.cleaner import get_cleaner
     cleaner = get_cleaner("data")
-    years = sorted(set([current, current - 1]))
-    cleaner.run_cleaning(years=years)
+    data_dir = Path("data")
+    candidate_years = sorted(set([current, current - 1]))
+    years = [
+        y for y in candidate_years
+        if (data_dir / f"games_{y}.csv").exists()
+        and (data_dir / f"standings_{y}.csv").exists()
+    ]
+    missing = [y for y in candidate_years if y not in years]
+    if missing:
+        print(f"  ⚠️ Sin datos crudos para {missing} — omite limpieza de esos años")
+        print("     Ejecuta download_mlb_historical.py para temporadas históricas")
+    if years:
+        cleaner.run_cleaning(years=years)
+    else:
+        print("  ⚠️ No hay temporadas listas para limpiar")
 
     print("\n Datos actualizados!")
 
