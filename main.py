@@ -43,6 +43,69 @@ TEAM_CODES = {
     "TOR": "Toronto Blue Jays", "WSH": "Washington Nationals",
 }
 
+SEPARADOR = "\n" + "─" * 80
+
+from src_v2.export_to_panel import _analyze_features as _panel_analyze
+
+
+def _get_date_str(game):
+    d = game["date"]
+    if hasattr(d, "strftime"):
+        dias = {"Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
+                "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado",
+                "Sunday": "Domingo"}
+        s = d.strftime("%A %I:%M %p").replace(" 0", " ")
+        for en, es in dias.items():
+            s = s.replace(en, es)
+        return s
+    return str(d)
+
+
+def _display_game_detail(home_short, away_short, home, away, game, wpred, rpred, fe, winner):
+    date_str = _get_date_str(game)
+    winner_is_home = wpred.get("code") == 1
+    winner_team = home_short if winner_is_home else away_short
+    confidence = wpred.get("confidence", 0)
+    probs = wpred.get("probabilities", {})
+
+    icon = "🏠" if winner_is_home else "✈️"
+    print(SEPARADOR)
+    print(f" ⚾ {home_short} @ {away_short}")
+    print(f" 📅 {date_str}")
+    print(SEPARADOR)
+    print(f" 🎯 EL MODELO DICE: {icon} GANA {winner_team}")
+    print(f"    Confianza: {confidence:.1%}")
+    print(f"    {home_short}: {probs.get('LOCAL', 0):.1%} | {away_short}: {probs.get('VISITANTE', 0):.1%}")
+
+    # Señales
+    favor, contra = _panel_analyze(fe, home, away, game["date"], winner, wpred)
+    if favor or contra:
+        winner_team_full = home_short if winner_is_home else away_short
+        loser_team_full = away_short if winner_is_home else home_short
+
+        if favor:
+            print(f"\n ✅ ¿POR QUÉ FAVORECE A {winner_team_full}?")
+            print(f" {'─' * 78}")
+            for i, s in enumerate(favor, 1):
+                print(f"  {i}. Señal del modelo: {s} ⭐")
+
+        if contra:
+            print(f"\n ❌ ¿QUÉ FAVORECE A {loser_team_full}?")
+            print(f" {'─' * 78}")
+            for i, s in enumerate(contra, 1):
+                print(f"  {i}. Señal del modelo: {s} ⭐")
+
+    # O/U
+    if "error" not in (rpred or {}):
+        er = rpred.get("expected_runs")
+        ou = rpred.get("markets", {}).get("over_8.5", {})
+        ou_pred = ou.get("prediction", "?")
+        ou_pct = ou.get("over_prob", 0)
+        ou_icon = "📈" if ou_pred == "OVER" else "📉"
+        print(f"\n 📊 O/U 8.5: {ou_icon} {ou_pred} ({ou_pct:.1%})")
+        if er is not None:
+            print(f"    Carreras totales esperadas: {er:.1f}")
+
 
 def clear():
     os.system("clear" if os.name == "posix" else "cls")
@@ -238,26 +301,13 @@ def predict_interactive():
                 print(f" {pred['error']}")
                 continue
 
-            print(f"\n {home[:20]:20} vs {away}")
-            print(f"  → {pred['predicted']} ({pred['confidence']:.0%}) [{pred['model']}]")
-            for k, v in pred["probabilities"].items():
-                print(f"    {k}: {v:.0%}")
-
             r = runs.predict(home, away, datetime.now(), fe, model_name=r_model)
-            if "error" not in r:
-                er = r.get("expected_runs")
-                if er is not None:
-                    print(f"  Carreras: {er:.1f}")
-                ou = r["markets"]["over_8.5"]
-                print(f"  O/U 8.5: {ou['prediction']} ({ou['over_prob']:.0%}) [{r['model']}]")
 
-            home_stand = fe.get_standings(home, datetime.now())
-            away_stand = fe.get_standings(away, datetime.now())
-            upset = comp.get_upset_risk(
-                home_stand["win_pct"], away_stand["win_pct"]
-            )
-            if upset["risk_level"] != "LOW":
-                print(f"  Upset risk: {upset['risk_level']} ({upset['upset_probability']:.0%})")
+            home_short = parts[0]
+            away_short = parts[1]
+
+            dummy_game = {"date": datetime.now()}
+            _display_game_detail(home_short, away_short, home, away, dummy_game, pred, r, fe, winner)
 
         except KeyboardInterrupt:
             break
@@ -272,14 +322,14 @@ def predict_date_games(date_str=None):
     if not date_str:
         date_str = input("Fecha (YYYY-MM-DD) [Enter = hoy]: ").strip()
 
-    if date_str:
-        try:
+    try:
+        if date_str:
             target_date = dt.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            print(" Formato inválido. Usa YYYY-MM-DD")
-            return
-    else:
-        target_date = dt.now().date()
+        else:
+            target_date = dt.now().date()
+    except ValueError:
+        print(" Formato inválido. Usa YYYY-MM-DD")
+        return
 
     year = target_date.year
 
@@ -326,12 +376,18 @@ def predict_date_games(date_str=None):
 
     name_to_code = {v: k for k, v in TEAM_CODES.items()}
 
-    print(f"\n  MLB - {target_date} ({len(day_games)} juegos)")
-    print(f"  {'─' * 65}")
-    print(f"  {'Local':22} {'Visitante':22}  Winner   Conf   O/U")
-    print(f"  {'─' * 65}")
+    comp = get_competitiveness("data")
+    comp.load_and_calculate(all_years)
+
+    print(f"\n PREDICCIÓN {target_date}")
+    print("=" * 80)
 
     predictions = []
+    total_conf = 0
+    home_wins_count = 0
+    away_wins_count = 0
+    over_count = 0
+
     for _, game in day_games.iterrows():
         home = game["home_team"]
         away = game["away_team"]
@@ -344,7 +400,7 @@ def predict_date_games(date_str=None):
 
         wpred = winner.predict(home, away, date_val, fe)
         if "error" in wpred:
-            print(f"  Error: {home} vs {away} - {wpred['error']}")
+            print(f"\n ⚠️ Error: {home} vs {away} - {wpred['error']}")
             continue
 
         rpred = runs.predict(home, away, date_val, fe)
@@ -352,15 +408,20 @@ def predict_date_games(date_str=None):
         home_short = name_to_code.get(home, home_info.get("code", home[:3].upper() or ""))
         away_short = name_to_code.get(away, away_info.get("code", away[:3].upper() or ""))
 
-        wcode = wpred.get("code")
-        winner_short = home_short if wcode == 1 else away_short
+        _display_game_detail(home_short, away_short, home, away, game, wpred, rpred, fe, winner)
+
         confidence = wpred.get("confidence", 0)
+        total_conf += confidence
+        if wpred.get("code") == 1:
+            home_wins_count += 1
+        else:
+            away_wins_count += 1
 
         ou_market = rpred.get("markets", {}).get("over_8.5", {})
-        ou_pred = "OVER" if ou_market.get("code") == 1 else "UNDER"
+        ou_pred = ou_market.get("prediction", "UNDER")
         ou_pct = ou_market.get("over_prob", 0)
-
-        print(f"  {home[:22]:22} {away[:22]:22}  {winner_short:6} {confidence:.0%}  {ou_pred} ({ou_pct:.0%})")
+        if ou_pred == "OVER":
+            over_count += 1
 
         game_pk = game.get("game_pk")
         if game_pk:
@@ -371,7 +432,7 @@ def predict_date_games(date_str=None):
                 "away_team": away_info.get("code", ""),
                 "home_full": home,
                 "away_full": away,
-                "predicted_winner": winner_short,
+                "predicted_winner": home_short if wpred.get("code") == 1 else away_short,
                 "predicted_winner_code": wpred.get("code"),
                 "confidence": confidence,
                 "winner_model": wpred.get("model", ""),
@@ -387,12 +448,38 @@ def predict_date_games(date_str=None):
             home_info["code"], away_info["code"],
             home_info["id"], away_info["id"],
             date_val, wpred, rpred,
+            feature_engineer=fe, winner_model=winner,
         )
         predictions.append(panel_pred)
 
-    print(f"  {'─' * 65}")
-    print(f"\n  Total: {len(predictions)} predicciones generadas")
+    under_count = len(predictions) - over_count
 
+    # Resumen
+    print("\n" + "=" * 80)
+    print(" 📊 RESUMEN".upper())
+    print("=" * 80)
+    liga = comp.global_level if hasattr(comp, "global_level") else "N/A"
+    score = comp.global_score if hasattr(comp, "global_score") else 0
+    if score > 0.6:
+        nota = "Liga balanceada — esperar mayor variabilidad"
+    elif score > 0.4:
+        nota = "Liga moderadamente competitiva"
+    else:
+        nota = "Liga con pocos equipos dominantes"
+    print(f" 🏆 Competitividad MLB: {liga} ({score:.2f})")
+    print(f"    {nota}")
+    print(f" Victorias locales: {home_wins_count}")
+    print(f" Victorias visitantes: {away_wins_count}")
+    print(f" OVER: {over_count} | UNDER: {under_count}")
+    print(f" Total partidos: {len(predictions)}")
+    print(f" Confianza promedio: {total_conf / max(len(predictions), 1):.1%}")
+    print(f" Modelo utilizado: {winner.best_model}")
+    print(SEPARADOR)
+    print()
+
+    print("=" * 80)
+    print(" ACCIONES")
+    print("=" * 80)
     send = input("\n  Enviar todo al panel? (s/n): ").strip().lower()
     if send == "s":
         from src_v2.export_to_panel import send_predictions, get_api_key

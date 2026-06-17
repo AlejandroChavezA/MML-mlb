@@ -22,6 +22,9 @@ from src_v2.features.mlb_feature_engineer import get_mlb_feature_engineer
 from src_v2.models.winner_predictor import get_winner_predictor
 from src_v2.models.runs_predictor import get_runs_predictor
 
+# Reuse detailed display from main
+from main import _display_game_detail, SEPARADOR
+
 TEAM_CODES = {
     "AZ": "Arizona Diamondbacks", "ATL": "Atlanta Braves",
     "BAL": "Baltimore Orioles", "BOS": "Boston Red Sox",
@@ -87,19 +90,11 @@ def predict_game(home_code: str, away_code: str, date=None,
         print(f" Error: {pred['error']}")
         return None
 
-    print(f"  Predicción: {pred['predicted']}")
-    print(f"  Confianza:  {pred['confidence']:.1%}")
-    print(f"  Probabilidades:")
-    for k, v in pred["probabilities"].items():
-        print(f"    {k}: {v:.1%}")
+    rpred = runs.predict(home, away, date, fe, model_name=r_model)
 
-    runs_pred = runs.predict(home, away, date, fe, model_name=r_model)
-    if "error" not in runs_pred:
-        er = runs_pred.get("expected_runs")
-        if er is not None:
-            print(f"\n  Carreras esperadas: {er:.1f}")
-        ou = runs_pred["markets"]["over_8.5"]
-        print(f"  O/U 8.5: {ou['prediction']} ({ou['over_prob']:.1%} over)")
+    dummy_game = {"date": date}
+    _display_game_detail(home_code.upper(), away_code.upper(), home, away, dummy_game, pred, rpred, fe, winner)
+    print()
 
     return pred
 

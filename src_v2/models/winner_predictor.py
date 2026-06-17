@@ -265,11 +265,16 @@ class WinnerPredictor:
         model = self.models.get(model_name)
         if model is None:
             return []
-        if hasattr(model, "estimator") and hasattr(model.estimator, "feature_importances_"):
+        imp = None
+        if hasattr(model, "calibrated_classifiers_"):
+            est = model.calibrated_classifiers_[0].estimator
+            if hasattr(est, "feature_importances_"):
+                imp = est.feature_importances_
+        if imp is None and hasattr(model, "estimator") and hasattr(model.estimator, "feature_importances_"):
             imp = model.estimator.feature_importances_
-        elif hasattr(model, "feature_importances_"):
+        if imp is None and hasattr(model, "feature_importances_"):
             imp = model.feature_importances_
-        else:
+        if imp is None:
             return []
         if feature_names is None:
             feature_names = self.feature_cols
